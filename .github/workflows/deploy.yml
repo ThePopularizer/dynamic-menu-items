@@ -5,65 +5,121 @@ on:
     tags:
       - '*'
 
+env:
+  PLUGIN_SLUG: ${{ secrets.PLUGIN_SLUG }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install SVN
-        run: sudo apt-get install -y subversion
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
 
-      - name: Extract version from plugin file
-        id: version
+      - name: Install SVN + rsync
         run: |
-          VERSION=$(grep -m 1 "Version:" dynamic-menu-items.php | awk '{print $2}')
+          sudo apt-get update
+          sudo apt-get install -y subversion rsync
+
+      - name: Set plugin version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
           echo "PLUGIN_VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Checkout WordPress.org SVN
-        run: |
-          svn checkout --depth=immediates "https://plugins.svn.wordpress.org/dynamic-menu-items/" svn_repo
-          cd svn_repo
-          svn update trunk --set-depth=infinity
-          svn update --set-depth=infinity tags
+      - name: Checkout WordPress.org SVN repository
         env:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
-
-      - name: Sync plugin files to trunk
         run: |
-          rsync -r --exclude='.git*' \
-                --exclude='assets/' \
-                --exclude='.gitignore' \
-                --exclude='README.md' \
-                --exclude='.github/' \
-                --delete \
-                . svn_repo/trunk/
+          svn checkout \
+            --non-interactive \
+            --trust-server-cert \
+            --username "$SVN_USERNAME" \
+            --password "$SVN_PASSWORD" \
+            https://plugins.svn.wordpress.org/${PLUGIN_SLUG}/ svn_repo
 
-      - name: Sync assets folder
+      - name: Clean SVN trunk
         run: |
-          mkdir -p svn_repo/assets
-          if [ -d "assets" ]; then
-            rsync -r assets/ svn_repo/assets/
-          fi
+          find svn_repo/trunk -mindepth 1 -maxdepth 1 \
+            ! -name '.svn' \
+            -exec rm -rf {} +
+
+      - name: Sync plugin files to SVN trunk
+        run: |
+          rsync -av --delete \
+            --exclude='.git*' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            --exclude='tests' \
+            --exclude='svn_repo' \
+            --exclude='vendor/bin' \
+            --exclude='*.log' \
+            --exclude='.DS_Store' \
+            ./ svn_repo/trunk/ || [[ $? == 24 ]]
+
+      - name: Remove deleted files from SVN
+        run: |
+          cd svn_repo
+
+          svn status | grep '^!' | awk '{print $2}' | xargs -r svn delete
+
+      - name: Add new files to SVN
+        run: |
+          cd svn_repo
+
+          svn add trunk/* \
+            --force \
+            --auto-props \
+            --parents \
+            --depth infinity \
+            -q || true
 
       - name: Create SVN tag
-        run: |
-          cd svn_repo
-          svn cp trunk tags/${{ env.PLUGIN_VERSION }}
-
-      - name: Commit to SVN
-        run: |
-          cd svn_repo
-          svn add --force . --auto-props --parents -q 2>/dev/null || true
-          svn status | grep '^!' | awk '{print $2}' | xargs -r svn rm --force
-          svn commit -m "Deploy version ${{ env.PLUGIN_VERSION }}" \
-            --username $SVN_USERNAME \
-            --password $SVN_PASSWORD \
-            --no-auth-cache
         env:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+        run: |
+          cd svn_repo
+
+          if svn ls \
+            https://plugins.svn.wordpress.org/${PLUGIN_SLUG}/tags/${PLUGIN_VERSION} \
+            --non-interactive \
+            --trust-server-cert \
+            --username "$SVN_USERNAME" \
+            --password "$SVN_PASSWORD" > /dev/null 2>&1; then
+
+            echo "Tag already exists. Removing existing tag."
+
+            svn delete \
+              --non-interactive \
+              --trust-server-cert \
+              --username "$SVN_USERNAME" \
+              --password "$SVN_PASSWORD" \
+              https://plugins.svn.wordpress.org/${PLUGIN_SLUG}/tags/${PLUGIN_VERSION} \
+              -m "Removing existing tag ${PLUGIN_VERSION}"
+          fi
+
+          svn copy \
+            trunk \
+            tags/${PLUGIN_VERSION}
+
+      - name: Commit changes to WordPress.org SVN
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+        run: |
+          cd svn_repo
+
+          svn commit \
+            --non-interactive \
+            --trust-server-cert \
+            --username "$SVN_USERNAME" \
+            --password "$SVN_PASSWORD" \
+            -m "Deploy version ${PLUGIN_VERSION}"

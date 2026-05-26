@@ -4,7 +4,7 @@ Plugin URI: https://brightbridgeweb.com/custom-plugins/dynamic-menu-items
 Contributors: @benjerminp
 Tags: dynamic menu, menu, taxonomy
 Requires at least: 6.7
-Tested up to: 6.7
+Tested up to: 7.0
 Requires PHP: 8.1
 Stable tag: 1.0.2
 License: GPLv2
@@ -52,3 +52,6 @@ Yes, dynamic menu items will utilize the meta fields the same as custom built me
 = 1.0.2: March 12, 2026 =
 * Adding support link
 * updating versions
+
+= 1.0.3: May 26, 2026 =
+* Updating tested to for WordPress 7.0 compliance
