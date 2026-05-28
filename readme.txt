@@ -6,7 +6,7 @@ Tags: dynamic menu, menu, taxonomy
 Requires at least: 6.7
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.0.2
+Stable tag: 1.0.4
 License: GPLv2
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -55,3 +55,6 @@ Yes, dynamic menu items will utilize the meta fields the same as custom built me
 
 = 1.0.3: May 26, 2026 =
 * Updating tested to for WordPress 7.0 compliance
+
+= 1.0.4: May 26, 2026 =
+* Updating stable tag
