@@ -50,7 +50,7 @@ function BBWDDYNOMENUITM_add_custom_menu_item_option($item_id, $item, $depth, $a
 			$bbwd_d_meta_key = isset($bbwd_post_meta['_bbwd_dymenu_post_meta_key']) && isset($bbwd_post_meta['_bbwd_dymenu_post_meta_key'][0]) ? $bbwd_post_meta['_bbwd_dymenu_post_meta_key'][0] : '';
 			$bbwd_d_meta_val = isset($bbwd_post_meta['_bbwd_dymenu_post_meta_value'][0]) ? $bbwd_post_meta['_bbwd_dymenu_post_meta_value'][0] : '';
 			if(!isset($bbwd_term)){continue;}
-			$bbwd_d_term_in_array = str_contains($bbwd_post_meta['_bbwd_dymenu_post_tax_items'][0], $bbwd_term->term_id); 
+			$bbwd_d_term_in_array = isset($bbwd_post_meta['_bbwd_dymenu_post_tax_items'][0]) && str_contains($bbwd_post_meta['_bbwd_dymenu_post_tax_items'][0], $bbwd_term->term_id); 
 			$bbwd_d_term_name = str_replace('_', ' ', $bbwd_term->name);
 			
 					?><option value="<?php echo esc_attr($bbwd_term->term_id) ?>" <?php echo $bbwd_d_term_in_array ? esc_attr('selected') : esc_attr(''); ?> ><?php echo esc_html($bbwd_d_term_name) ?></option><?php
@@ -87,11 +87,11 @@ function BBWDDYNOMENUITM_add_custom_menu_item_option($item_id, $item, $depth, $a
 			</div>
 			<br>
 			<?php 
-				$bbwd_d_p_count = isset($bbwd_post_meta['_bbwd_dymenu_post_count'][0]) ? $bbwd_post_meta['_bbwd_dymenu_post_count'][0] : 1;
+				$bbwd_d_p_count = isset($bbwd_post_meta['_bbwd_dymenu_post_count'][0]) ? $bbwd_post_meta['_bbwd_dymenu_post_count'][0] : 5;
 			?>
 			<p class='description description-wide'>
 						<label for='bbwd_dymenu_post_count_<?php echo esc_attr($item_id); ?>'>Quantity To Display</label>
-						<input type="number" min="1" max="50" id="bbwd_post_quantity" name='bbwd_dymenu_post_count_<?php echo esc_attr($item_id); ?>' value='<?php echo esc_attr($bbwd_d_p_count) ?>' class="widefat" >
+						<input type="number" min="1" max="50" id="bbwd_dymenu_post_count_<?php echo esc_attr($item_id); ?>" name='bbwd_dymenu_post_count_<?php echo esc_attr($item_id); ?>' value='<?php echo esc_attr($bbwd_d_p_count) ?>' class="widefat" >
 					</p>
 			<div class='bbwdFlex bbwdRowNW bbwdGap10'>
 					<p class='description description-wide bbwdWidth100'>
@@ -101,6 +101,7 @@ function BBWDDYNOMENUITM_add_custom_menu_item_option($item_id, $item, $depth, $a
 							<option value='name' <?php echo $bbwd_order_define == 'name' ? esc_attr('selected') : esc_attr(''); ?> >Name</option>
 							<option value='id' <?php echo $bbwd_order_define == 'id' ? esc_attr('selected') : esc_attr(''); ?>>ID</option>
 							<option value='date' <?php echo $bbwd_order_define == 'date' ? esc_attr('selected') : ''; ?> >Date</option>
+							<option value='menu_order' <?php echo $bbwd_order_define == 'menu_order' ? esc_attr('selected') : ''; ?> >Menu Order</option>
 						</select>
 					</p>
 					<p class='description description-wide bbwdWidth100'>
@@ -147,6 +148,7 @@ function BBWDDYNOMENUITM_save_custom_menu_item_option($menu_id, $menu_item_db_id
 	update_post_meta($menu_item_db_id, '_bbwd_dymenu_post_tax_operate', $BBWDDYMENUITM_custom_post_opertate);
 	update_post_meta($menu_item_db_id, '_bbwd_dymenu_post_tax_order', $BBWDDYMENUITM_custom_post_sort);
 	update_post_meta($menu_item_db_id, '_bbwd_dymenu_post_count', $BBWDDYMENUITM_custom_post_count);
+	update_post_meta($menu_item_db_id, '_bbwd_dymenu_post_tax_sort_direct', $BBWDDYMENUITM_custom_post_sort_direct);
 	update_post_meta($menu_item_db_id, '_bbwd_dymenu_post_meta_key', $BBWDDYMENUITM_custom_post_meta_key);
 	update_post_meta($menu_item_db_id, '_bbwd_dymenu_post_meta_value', $BBWDDYMENUITM_custom_post_meta_value);
         
@@ -155,90 +157,98 @@ add_action('wp_update_nav_menu_item', 'BBWDDYNOMENUITM_save_custom_menu_item_opt
 
 /***************** Frontend View *****************/
 function BBWDDYNOMENUITM_modify_custom_menu_item($sorted_menu_items, $args) {
+    $offset = 0;
     foreach ($sorted_menu_items as $key => $item) {
-		$bbwd_dmi_parent_id = $item->ID;
-		$bbwd_dmi_cache_key = 'bbwd_dynamic_menu_cache';
-		$bbwd_dmi_cached_posts = wp_cache_get($bbwd_dmi_cache_key);
+        $bbwd_dmi_parent_id = $item->ID;
+        $adjusted_key = $key + $offset;
         $bbwd_dmi_p_type = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_type', true);
-		if(isset($bbwd_dmi_p_type[0]) && $bbwd_dmi_p_type[0] != ''){
-			$bbwd_dmi_p_tax = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_tax', true);
-			$bbwd_dmi_p_count = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_count', true);
-			$bbwd_dmi_p_order = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_tax_order', true);
-			$bbwd_dmi_p_sort = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_tax_sort_direct', true);
-			$bbwd_dmi_p_operate = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_tax_operate', true);
-			$bbwd_dmi_p_item_string = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_tax_items', true);
-			$bbwd_dmi_p_meta_key = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_meta_key', true);
-			$bbwd_dmi_p_meta_value = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_meta_value', true);
-			$bbwd_dmi_p_items = str_contains( $bbwd_dmi_p_item_string , ',') ? explode(',', $bbwd_dmi_p_item_string) : $bbwd_dmi_p_item_string;
-			
-			$bbwd_dmi_args = array(
-				'post_type' => $bbwd_dmi_p_type,
-				'posts_per_page'=> $bbwd_dmi_p_count,
-				'orderby'    => $bbwd_dmi_p_order,
-				'order' => $bbwd_dmi_p_sort,
-			);
-			
-			if($bbwd_dmi_p_items !== 'all'){
-				$bbwd_dmi_t_query = array('relation'=>$bbwd_dmi_p_operate);
-				if(is_array($bbwd_dmi_p_items)){
-					foreach($bbwd_dmi_p_items as $bbwd_dmi_t){
-						$bbwd_dmi_arr = array(
-							'taxonomy' => $bbwd_dmi_p_tax,
-							'field'    => 'id',
-							'terms'    => $bbwd_dmi_t,
-						);
-						array_push($bbwd_dmi_t_query, $bbwd_dmi_arr);
-					}
-				}else{
-					$bbwd_dmi_arr = array(
-							'taxonomy' => $bbwd_dmi_p_tax,
-							'field'    => 'id',
-							'terms'    => $bbwd_dmi_p_items,
-						);
-					array_push($bbwd_dmi_t_query, $bbwd_dmi_arr);
-				}
-				
-				$bbwd_dmi_args['tax_query'] = $bbwd_dmi_t_query;
-			}
-			if(isset($bbwd_dmi_p_meta_key) && $bbwd_dmi_p_meta_key !== '' && isset($bbwd_dmi_p_meta_value) && $bbwd_dmi_p_meta_value !== '' ){
-				$bbwd_dmi_args['meta_query'] = array(
-										array(
-											'key'   => $bbwd_dmi_p_meta_key,
-											'value' => $bbwd_dmi_p_meta_value,
-										)
-					);
-				
-				
-			}
-			$bbwd_dmi_postslist = !$bbwd_dmi_cached_posts ? get_posts( $bbwd_dmi_args ) :  $bbwd_dmi_cached_posts;
-			if(!$bbwd_dmi_cached_posts){
-				wp_cache_set($bbwd_dmi_cache_key, $bbwd_dmi_postslist, '', 0);
-			}
-			
-			foreach($bbwd_dmi_postslist as $bbwd_dmi_p){
-				$bbwd_dmi_permaL = get_permalink($bbwd_dmi_p->ID);
-				$bbwd_dmi_submenu_item = (object) [
-					'ID' => $bbwd_dmi_p->ID, 
-					'db_id' => $bbwd_dmi_p->ID,
-					'menu_item_parent' => $bbwd_dmi_parent_id, 
-					'title' => $bbwd_dmi_p->post_title,
-					'url' => $bbwd_dmi_permaL, 
-					'classes' => ['menu-item', 'menu-item-type-custom'],
-					'type' => 'custom',
-					'object' => '',
-					'object_id' => 0,
-					'target' => '',
-					'attr_title' => '',
-					'xfn' => '',
-					'current' => false, 
-					'current_item_parent' => false,
-					'current_item_ancestor' => false,
-				];
-				array_splice($sorted_menu_items, $key + 1, 0, [$bbwd_dmi_submenu_item]);
-			}
-		}
-	}
-        
+        if (!empty($bbwd_dmi_p_type)) {
+            $bbwd_dmi_p_tax = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_tax', true);
+            $bbwd_dmi_p_count = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_count', true);
+            $bbwd_dmi_p_order = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_tax_order', true);
+            $bbwd_dmi_p_sort = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_tax_sort_direct', true);
+            $bbwd_dmi_p_operate = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_tax_operate', true);
+            $bbwd_dmi_p_item_string = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_tax_items', true);
+            $bbwd_dmi_p_meta_key = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_meta_key', true);
+            $bbwd_dmi_p_meta_value = get_post_meta($bbwd_dmi_parent_id, '_bbwd_dymenu_post_meta_value', true);
+
+            if (!$bbwd_dmi_p_count) {
+                $bbwd_dmi_p_count = 5;
+            }
+
+            $bbwd_dmi_p_items = 'all';
+            if ($bbwd_dmi_p_item_string && $bbwd_dmi_p_item_string !== '') {
+                $bbwd_dmi_p_items = str_contains($bbwd_dmi_p_item_string, ',') ? explode(',', $bbwd_dmi_p_item_string) : $bbwd_dmi_p_item_string;
+            }
+
+            $bbwd_dmi_args = array(
+                'post_type' => $bbwd_dmi_p_type,
+                'posts_per_page' => $bbwd_dmi_p_count,
+                'orderby' => $bbwd_dmi_p_order,
+                'order' => $bbwd_dmi_p_sort,
+            );
+
+            if ($bbwd_dmi_p_items !== 'all') {
+                $bbwd_dmi_t_query = array('relation' => $bbwd_dmi_p_operate);
+                if (is_array($bbwd_dmi_p_items)) {
+                    foreach ($bbwd_dmi_p_items as $bbwd_dmi_t) {
+                        $bbwd_dmi_arr = array(
+                            'taxonomy' => $bbwd_dmi_p_tax,
+                            'field' => 'id',
+                            'terms' => $bbwd_dmi_t,
+                        );
+                        array_push($bbwd_dmi_t_query, $bbwd_dmi_arr);
+                    }
+                } else {
+                    $bbwd_dmi_arr = array(
+                        'taxonomy' => $bbwd_dmi_p_tax,
+                        'field' => 'id',
+                        'terms' => $bbwd_dmi_p_items,
+                    );
+                    array_push($bbwd_dmi_t_query, $bbwd_dmi_arr);
+                }
+
+                $bbwd_dmi_args['tax_query'] = $bbwd_dmi_t_query;
+            }
+            if (isset($bbwd_dmi_p_meta_key) && $bbwd_dmi_p_meta_key !== '' && isset($bbwd_dmi_p_meta_value) && $bbwd_dmi_p_meta_value !== '') {
+                $bbwd_dmi_args['meta_query'] = array(
+                    array(
+                        'key' => $bbwd_dmi_p_meta_key,
+                        'value' => $bbwd_dmi_p_meta_value,
+                    )
+                );
+            }
+            $bbwd_dmi_postslist = get_posts($bbwd_dmi_args);
+
+            $submenu_items = array();
+            foreach ($bbwd_dmi_postslist as $bbwd_dmi_p) {
+                $bbwd_dmi_permaL = get_permalink($bbwd_dmi_p->ID);
+                $submenu_items[] = (object) [
+                    'ID' => $bbwd_dmi_p->ID,
+                    'db_id' => $bbwd_dmi_p->ID,
+                    'menu_item_parent' => $bbwd_dmi_parent_id,
+                    'title' => $bbwd_dmi_p->post_title,
+                    'url' => $bbwd_dmi_permaL,
+                    'classes' => ['menu-item', 'menu-item-type-custom'],
+                    'type' => 'custom',
+                    'object' => '',
+                    'object_id' => 0,
+                    'target' => '',
+                    'attr_title' => '',
+                    'xfn' => '',
+                    'current' => false,
+                    'current_item_parent' => false,
+                    'current_item_ancestor' => false,
+                ];
+            }
+            array_splice($sorted_menu_items, $adjusted_key + 1, 0, $submenu_items);
+            $offset += count($submenu_items);
+            if (!empty($submenu_items)) {
+                $item->classes[] = 'menu-item-has-children';
+            }
+        }
+    }
+
     return $sorted_menu_items;
 }
 add_filter('wp_nav_menu_objects', 'BBWDDYNOMENUITM_modify_custom_menu_item', 10, 2);
@@ -352,6 +362,7 @@ function BBWDDYNOMENUITM_add_dm_menu_item_ajax() {
 	}
 	update_post_meta($menu_item_id, '_bbwd_dymenu_post_type', $bbwd_dym_post_type);
 	update_post_meta($menu_item_id, '_bbwd_dymenu_post_tax', $bbwd_dym_post_tax);
+	update_post_meta($menu_item_id, '_bbwd_dymenu_post_count', 5);
     $NewHTML = BBWDDYNOMENUITM_get_custom_menu_item_edit_html($menu_item_id);
     wp_send_json_success(array('menu_html' => $NewHTML));
 	wp_die();
